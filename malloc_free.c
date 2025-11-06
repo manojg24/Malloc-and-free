@@ -16,7 +16,9 @@ static blockheader *free_list = NULL;
 
 void heap_init(void);
 void *my_malloc(size_t size);
+blockheader *find_free_block(size_t size);
 void my_free(void *ptr);
+void coalesce_free_blocks(void);
 void dump_heap(void);
 void split_block(blockheader *block, size_t size);
 
@@ -35,12 +37,15 @@ int main(void)
     printf("After freeing first block:\n");
     dump_heap();
 
-    void *c = my_malloc(100);
+    void *c = my_malloc(400);
     printf("After reallocating 100 bytes:\n");
     dump_heap();
 
     (void)b;
     (void)c;
+    my_free(b);
+    my_free(a);
+    dump_heap();
     return 0;
 }
 
@@ -66,6 +71,17 @@ void split_block(blockheader *block, size_t size) {
     }
 }
 
+blockheader *find_free_block(size_t size)
+{
+    blockheader *curr = free_list;
+    while (curr) {
+        if (curr->free && curr->size >= size)
+            return curr;
+        curr = curr->next;
+    }
+    return NULL;
+}
+
 void *my_malloc(size_t size) {
     if (size == 0) return NULL;
 
@@ -89,6 +105,20 @@ void my_free(void *ptr) {
 
     blockheader *block = (blockheader *)((uint8_t *)ptr - sizeof(blockheader));
     block->free = 1;
+    coalesce_free_blocks();
+}
+
+void coalesce_free_blocks(void)
+{
+    blockheader *curr = free_list;
+    while (curr && curr->next) {
+        if (curr->free && curr->next->free) {
+            curr->size += sizeof(blockheader) + curr->next->size;
+            curr->next = curr->next->next;
+        } else {
+            curr = curr->next;
+        }
+    }
 }
 
 // ---- Debug helper ----
